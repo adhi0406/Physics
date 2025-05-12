@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Momentum and Kinetic Energy Simulation</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .container {
+      display: flex;
+      justify-content: space-between;
+    }
+    .graph {
+      width: 45%;
+      height: 300px;
+    }
+    .input-container {
+      width: 45%;
+    }
+    canvas {
+      border: 1px solid #000;
+      background-color: #f0f0f0;
+    }
+    .calculation-steps {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #fafafa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Momentum and Kinetic Energy Simulation</h1>
+  <div class="container">
+    <div class="input-container">
+      <h3>Input Parameters</h3>
+      <label for="mass">Mass (kg): </label>
+      <input type="number" id="mass" value="1" min="0.1" step="0.1"><br><br>
+
+      <label for="velocity">Velocity (m/s): </label>
+      <input type="number" id="velocity" value="5" min="0.1" step="0.1"><br><br>
+
+      <button onclick="updateSimulation()">Update Simulation</button>
+      <h3>Animation</h3>
+      <canvas id="animationCanvas" width="500" height="200"></canvas>      
+    </div>
+    <div>
+
+</div>
+    <div class="graphs">
+      <canvas id="momentumGraph" class="graph"></canvas>
+      <canvas id="kineticEnergyGraph" class="graph"></canvas>
+    </div>
+  </div>
+
+  <h3>Results</h3>
+  <div>
+    <p id="momentumResult">Momentum: </p>
+    <p id="kineticEnergyResult">Kinetic Energy: </p>
+  </div>
+
+  <h3>Calculation Details</h3>
+  <div class="calculation-steps">
+    <h4>Momentum Formula:</h4>
+    <p id="momentumFormula">Momentum = mass × velocity</p>
+    <p id="momentumCalculation">Calculation: </p>
+
+    <h4>Kinetic Energy Formula:</h4>
+    <p id="kineticEnergyFormula">Kinetic Energy = 0.5 × mass × velocity²</p>
+    <p id="kineticEnergyCalculation">Calculation: </p>
+  </div>
+
+
+
+  <script>
+    // Initialize the graphs
+    const ctxMomentum = document.getElementById('momentumGraph').getContext('2d');
+    const ctxKineticEnergy = document.getElementById('kineticEnergyGraph').getContext('2d');
+    const ctxAnimation = document.getElementById('animationCanvas').getContext('2d');
+
+    // Graph setup
+    const momentumChart = new Chart(ctxMomentum, {
+      type: 'line',
+      data: {
+        labels: [], // Time in seconds
+        datasets: [{
+          label: 'Momentum (kg·m/s)',
+          borderColor: 'rgba(255, 99, 132, 1)',
+          backgroundColor: 'rgba(255, 99, 132, 0.2)',
+          data: [],
+          fill: true
+        }]
+      }
+    });
+
+    const kineticEnergyChart = new Chart(ctxKineticEnergy, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Kinetic Energy (J)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          backgroundColor: 'rgba(54, 162, 235, 0.2)',
+          data: [],
+          fill: true
+        }]
+      }
+    });
+
+    // Variables for animation
+    let ballX = 50; // Starting position of the ball
+    let velocity = 5; // Initial velocity
+    let mass = 1; // Initial mass
+    let momentum = mass * velocity;
+    let force = mass * velocity; // Simple force representation
+    let isRunning = false;
+
+    // Function to update the simulation
+    function updateSimulation() {
+      mass = parseFloat(document.getElementById('mass').value);
+      velocity = parseFloat(document.getElementById('velocity').value);
+
+      // Calculate Momentum and Kinetic Energy
+      momentum = mass * velocity;
+      const kineticEnergy = 0.5 * mass * Math.pow(velocity, 2);
+
+      // Update Results
+      document.getElementById('momentumResult').innerText = `Momentum: ${momentum} kg·m/s`;
+      document.getElementById('kineticEnergyResult').innerText = `Kinetic Energy: ${kineticEnergy} J`;
+
+      // Update the Graphs
+      updateGraph(momentum, kineticEnergy);
+
+      // Update Calculation Details
+      document.getElementById('momentumCalculation').innerText = `Calculation: ${mass} × ${velocity} = ${momentum} kg·m/s`;
+      document.getElementById('kineticEnergyCalculation').innerText = `Calculation: 0.5 × ${mass} × (${velocity}²) = ${kineticEnergy} J`;
+
+      // Update Formulas
+      document.getElementById('momentumFormula').innerText = `Momentum = ${mass} × ${velocity}`;
+      document.getElementById('kineticEnergyFormula').innerText = `Kinetic Energy = 0.5 × ${mass} × ${velocity}²`;
+
+      // Reset ball position and start animation
+      ballX = 50; // Reset the ball position
+      isRunning = true;
+      animateBall();
+    }
+
+    // Function to update the graph data
+    function updateGraph(momentum, kineticEnergy) {
+      const time = momentumChart.data.labels.length + 1; // Incrementing time by 1 second for each update
+
+      // Add the new values to the graphs
+      momentumChart.data.labels.push(time);
+      momentumChart.data.datasets[0].data.push(momentum);
+      momentumChart.update();
+
+      kineticEnergyChart.data.labels.push(time);
+      kineticEnergyChart.data.datasets[0].data.push(kineticEnergy);
+      kineticEnergyChart.update();
+    }
+
+    // Function to animate the ball and arrows
+    function animateBall() {
+      if (!isRunning) return;
+
+      ctxAnimation.clearRect(0, 0, 500, 200); // Clear the canvas
+
+      // Draw the ball
+      ctxAnimation.beginPath();
+      ctxAnimation.arc(ballX, 100, 20, 0, 2 * Math.PI);
+      ctxAnimation.fillStyle = 'blue';
+      ctxAnimation.fill();
+      ctxAnimation.closePath();
+
+      // Draw force arrow (to the right, proportional to velocity)
+      ctxAnimation.beginPath();
+      ctxAnimation.moveTo(ballX, 100);
+      ctxAnimation.lineTo(ballX + velocity * 10, 100); // Scale arrow by 10 for better visibility
+      ctxAnimation.strokeStyle = 'red';
+      ctxAnimation.lineWidth = 3;
+      ctxAnimation.stroke();
+      ctxAnimation.closePath();
+
+      // Draw momentum arrow (same direction as velocity but proportional to momentum)
+      ctxAnimation.beginPath();
+      ctxAnimation.moveTo(ballX, 100);
+      ctxAnimation.lineTo(ballX + momentum * 10, 100); // Scale arrow by 10 for better visibility
+      ctxAnimation.strokeStyle = 'green';
+      ctxAnimation.lineWidth = 2;
+      ctxAnimation.setLineDash([5, 5]); // Dotted line for momentum
+      ctxAnimation.stroke();
+      ctxAnimation.closePath();
+
+      // Update ball position
+      ballX += velocity;
+
+      // Stop animation when the ball reaches the edge
+      if (ballX > 480) {
+        isRunning = false;
+      }
+
+      // Request next frame
+      requestAnimationFrame(animateBall);
+    }
+
+    // Initialize with default values
+    updateSimulation();
+  </script>
+</body>
+</html>

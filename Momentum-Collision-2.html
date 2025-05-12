@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics Simulation: Colliding Objects</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        .form-container {
+            display: flex;
+            gap: 20px;
+        }
+        .form-container form {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #graphContainer {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Physics Simulation: Colliding Objects</h1>
+
+    <div class="controls">
+        <div class="form-container">
+            <!-- Object 1 Form -->
+            <form id="object1Form">
+                <h3>Object 1</h3>
+                <label for="mass1">Mass:</label>
+                <input type="number" id="mass1" value="2" step="0.1">
+                <br>
+                <label for="velocity1">Initial Velocity:</label>
+                <input type="number" id="velocity1" value="5" step="0.1">
+                <br>
+                <label for="angle1">Angle (°):</label>
+                <input type="number" id="angle1" value="45" step="1">
+            </form>
+
+            <!-- Object 2 Form -->
+            <form id="object2Form">
+                <h3>Object 2</h3>
+                <label for="mass2">Mass:</label>
+                <input type="number" id="mass2" value="2" step="0.1">
+                <br>
+                <label for="velocity2">Initial Velocity:</label>
+                <input type="number" id="velocity2" value="-5" step="0.1">
+                <br>
+                <label for="angle2">Angle (°):</label>
+                <input type="number" id="angle2" value="-45" step="1">
+            </form>
+        </div>
+
+        <label for="COR">Coefficient of Restitution (COR):</label>
+        <input type="number" id="COR" value="0.8" step="0.01" min="0" max="1">
+        <br>
+        <button id="startButton">Start Simulation</button>
+    </div>
+
+    <canvas id="simulationCanvas" width="800" height="600"></canvas>
+
+    <div id="graphContainer">
+        <canvas id="graph"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const mass1Input = document.getElementById('mass1');
+        const velocity1Input = document.getElementById('velocity1');
+        const angle1Input = document.getElementById('angle1');
+
+        const mass2Input = document.getElementById('mass2');
+        const velocity2Input = document.getElementById('velocity2');
+        const angle2Input = document.getElementById('angle2');
+
+        const CORInput = document.getElementById('COR');
+        const startButton = document.getElementById('startButton');
+
+        let mass1, velocity1, angle1, mass2, velocity2, angle2, COR;
+        let obj1, obj2;
+        let lastTime = 0;
+
+        const timeSeriesData = {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Object 1 Momentum',
+                    borderColor: 'blue',
+                    data: [],
+                    fill: false
+                },
+                {
+                    label: 'Object 2 Momentum',
+                    borderColor: 'red',
+                    data: [],
+                    fill: false
+                },
+                {
+                    label: 'Object 1 Speed',
+                    borderColor: 'green',
+                    data: [],
+                    fill: false
+                },
+                {
+                    label: 'Object 2 Speed',
+                    borderColor: 'orange',
+                    data: [],
+                    fill: false
+                }
+            ]
+        };
+
+        const momentumGraph = new Chart(document.getElementById('graph'), {
+            type: 'line',
+            data: timeSeriesData,
+            options: {
+                scales: {
+                    x: { type: 'linear', position: 'bottom' },
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        startButton.addEventListener('click', () => {
+            mass1 = parseFloat(mass1Input.value);
+            velocity1 = parseFloat(velocity1Input.value);
+            angle1 = parseFloat(angle1Input.value) * Math.PI / 180;
+
+            mass2 = parseFloat(mass2Input.value);
+            velocity2 = parseFloat(velocity2Input.value);
+            angle2 = parseFloat(angle2Input.value) * Math.PI / 180;
+
+            COR = parseFloat(CORInput.value);
+
+            obj1 = new PhysicsObject(mass1, velocity1, angle1, 100, 300);
+            obj2 = new PhysicsObject(mass2, velocity2, angle2, 600, 300);
+
+            lastTime = performance.now();
+            requestAnimationFrame(update);
+        });
+
+        function PhysicsObject(mass, velocity, angle, x, y) {
+            this.mass = mass;
+            this.velocity = velocity;
+            this.angle = angle;
+            this.x = x;
+            this.y = y;
+            this.vx = velocity * Math.cos(angle);
+            this.vy = velocity * Math.sin(angle);
+        }
+
+        function update() {
+            const currentTime = performance.now();
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            obj1.x += obj1.vx * deltaTime;
+            obj1.y += obj1.vy * deltaTime;
+
+            obj2.x += obj2.vx * deltaTime;
+            obj2.y += obj2.vy * deltaTime;
+
+            checkCollision();
+
+            draw();
+            updateGraphs();
+
+            requestAnimationFrame(update);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.beginPath();
+            ctx.arc(obj1.x, obj1.y, 20, 0, Math.PI * 2);
+            ctx.fillStyle = 'blue';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(obj2.x, obj2.y, 20, 0, Math.PI * 2);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+        }
+
+        function checkCollision() {
+            const dx = obj1.x - obj2.x;
+            const dy = obj1.y - obj2.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < 40) { // Collision threshold
+                const normal = { x: dx / distance, y: dy / distance };
+                const relativeVelocity = { x: obj1.vx - obj2.vx, y: obj1.vy - obj2.vy };
+                const velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
+
+                if (velocityAlongNormal < 0) {
+                    const restitution = COR + 0.1;
+                    const impulse = (2 * velocityAlongNormal) / (obj1.mass + obj2.mass);
+
+                    obj1.vx -= impulse * obj2.mass * normal.x;
+                    obj1.vy -= impulse * obj2.mass * normal.y;
+
+                    obj2.vx += impulse * obj1.mass * normal.x;
+                    obj2.vy += impulse * obj1.mass * normal.y;
+                }
+            }
+        }
+
+        function updateGraphs() {
+            const timeLabel = timeSeriesData.labels.length;
+
+            // Update time series labels and data
+            timeSeriesData.labels.push(timeLabel);
+
+            const momentum1 = obj1.mass * Math.sqrt(obj1.vx * obj1.vx + obj1.vy * obj1.vy);
+            const momentum2 = obj2.mass * Math.sqrt(obj2.vx * obj2.vx + obj2.vy * obj2.vy);
+
+            timeSeriesData.datasets[0].data.push(momentum1);
+            timeSeriesData.datasets[1].data.push(momentum2);
+
+            const speed1 = Math.sqrt(obj1.vx * obj1.vx + obj1.vy * obj1.vy);
+            const speed2 = Math.sqrt(obj2.vx * obj2.vx + obj2.vy * obj2.vy);
+
+            timeSeriesData.datasets[2].data.push(speed1);
+            timeSeriesData.datasets[3].data.push(speed2);
+
+            // Update the chart with new data
+            momentumGraph.update();
+        }
+    </script>
+</body>
+</html>

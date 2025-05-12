@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Physics Simulation: Momentum, KE & Speed</title>
+  <script src="https://cdn.jsdelivr.net/npm/matter-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
+    header { background-color: #4CAF50; color: white; padding: 10px 0; text-align: center; }
+    #controls, #results, #education { text-align: center; margin: 20px auto; max-width: 800px; }
+    input, button { margin: 0 10px; padding: 5px; }
+    #canvas-container { display: flex; justify-content: center; margin-top: 20px; }
+    #charts-container { display: flex; flex-wrap: wrap; justify-content: space-around; margin-top: 40px; }
+    canvas { border: 1px solid black; margin: 10px; }
+    #education { background: #fff; padding: 20px; border: 1px solid #ccc; }
+    h3 { margin-top: 30px; }
+    #resumeBtn { display: none; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Physics Simulation: Momentum, Kinetic Energy & Speed</h1>
+</header>
+
+<div id="controls">
+  <label>Mass (kg): <input type="number" id="massInput" value="2" step="0.1"></label>
+  <label>Drop Height (m): <input type="number" id="heightInput" value="3" step="0.1"></label>
+  <button onclick="restartSimulation()">Start Simulation</button>
+  <button id="resumeBtn" onclick="resumeGraphs()">Resume Graph</button>
+</div>
+
+<div id="canvas-container">
+  <canvas id="simulationCanvas" width="600" height="400"></canvas>
+</div>
+
+<div id="results">
+  <h3>Manual Calculation</h3>
+  <p><strong>Speed:</strong> <span id="speedDisplay">0</span> m/s</p>
+  <p><strong>Momentum (p = mv):</strong> <span id="momentumDisplay">0</span> kg·m/s</p>
+  <p><strong>Kinetic Energy (KE = ½mv²):</strong> <span id="keDisplay">0</span> J</p>
+</div>
+
+<div id="charts-container">
+  <div>
+    <h3>Momentum vs Time</h3>
+    <canvas id="momentumChart" width="400" height="250"></canvas>
+  </div>
+  <div>
+    <h3>Kinetic Energy vs Time</h3>
+    <canvas id="KEChart" width="400" height="250"></canvas>
+  </div>
+  <div>
+    <h3>Speed vs Time</h3>
+    <canvas id="speedChart" width="400" height="250"></canvas>
+  </div>
+</div>
+
+<div id="education">
+  <h2>Educational Material</h2>
+  <p>This simulation demonstrates key physics principles of momentum and kinetic energy using a falling object under gravity.</p>
+  <h3>Formulas</h3>
+  <ul>
+    <li><strong>Momentum:</strong> \( p = mv \)</li>
+    <li><strong>Kinetic Energy:</strong> \( KE = \frac{1}{2}mv^2 \)</li>
+    <li><strong>Speed:</strong> \( v = \sqrt{2gh} \) (for object falling from rest)</li>
+  </ul>
+  <h3>Definitions</h3>
+  <ul>
+    <li><strong>Mass (m):</strong> The amount of matter in an object, measured in kilograms (kg).</li>
+    <li><strong>Velocity (v):</strong> The speed of the object in a specific direction (m/s).</li>
+    <li><strong>Momentum (p):</strong> The quantity of motion, a product of mass and velocity (kg·m/s).</li>
+    <li><strong>Kinetic Energy (KE):</strong> The energy of motion, dependent on mass and velocity (Joules).</li>
+  </ul>
+  <h3>Units</h3>
+  <ul>
+    <li><strong>kg·m/s:</strong> Unit of momentum</li>
+    <li><strong>Joule (J):</strong> Unit of energy (1 J = 1 kg·m²/s²)</li>
+  </ul>
+</div>
+
+<script>
+const { Engine, Render, World, Bodies, Runner } = Matter;
+
+let engine, world, runner, ball, ground, render;
+let ballMass = 2;
+let dropHeight = 3;
+const pxPerMeter = 100;
+
+let momentumData = [], KEData = [], speedData = [], timeData = [], timeCounter = 0;
+let graphInterval;
+let graphPaused = false;
+
+// Setup charts with annotation support
+const createChart = (ctx, label, color) => {
+  return new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{ label, data: [], borderColor: color, fill: false }] },
+    options: {
+      responsive: true,
+      plugins: {
+        annotation: {
+          annotations: {}
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Time (s)' }},
+        y: { title: { display: true, text: label }}
+      }
+    }
+  });
+};
+
+const momentumChart = createChart(document.getElementById('momentumChart').getContext('2d'), 'Momentum (kg·m/s)', 'red');
+const KEChart = createChart(document.getElementById('KEChart').getContext('2d'), 'Kinetic Energy (J)', 'blue');
+const speedChart = createChart(document.getElementById('speedChart').getContext('2d'), 'Speed (m/s)', 'green');
+
+function restartSimulation() {
+  ballMass = parseFloat(document.getElementById("massInput").value);
+  dropHeight = parseFloat(document.getElementById("heightInput").value);
+
+  if (isNaN(ballMass) || isNaN(dropHeight)) {
+    alert("Please enter valid numbers.");
+    return;
+  }
+
+  if (engine) {
+    World.clear(engine.world);
+    Engine.clear(engine);
+    if (render) {
+      render.canvas.remove();
+      render.textures = {};
+    }
+  }
+
+  momentumData = []; KEData = []; speedData = []; timeData = []; timeCounter = 0;
+  ['momentumChart', 'KEChart', 'speedChart'].forEach((id) => {
+    const chart = eval(id);
+    chart.data.labels = [];
+    chart.data.datasets[0].data = [];
+    chart.options.plugins.annotation.annotations = {};
+    chart.update();
+  });
+
+  document.getElementById("resumeBtn").style.display = "none";
+
+  engine = Engine.create();
+  world = engine.world;
+  runner = Runner.create();
+
+  ball = Bodies.circle(300, 400 - dropHeight * pxPerMeter, 20, {
+    restitution: 0.9,
+    friction: 0.01,
+    density: ballMass / (Math.PI * 20 * 20)
+  });
+
+  ground = Bodies.rectangle(300, 390, 600, 20, { isStatic: true });
+  World.add(world, [ball, ground]);
+
+  render = Render.create({
+    element: document.getElementById('canvas-container'),
+    engine: engine,
+    canvas: document.getElementById('simulationCanvas'),
+    options: {
+      width: 600,
+      height: 400,
+      wireframes: false,
+      background: '#f0f0f0'
+    }
+  });
+
+  Render.run(render);
+  Runner.run(runner, engine);
+
+  clearInterval(graphInterval);
+  graphInterval = setInterval(updateGraphs, 1000 / 60);
+  graphPaused = false;
+}
+
+function updateGraphs() {
+  if (!ball) return;
+
+  const velocity = ball.velocity;
+  const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2);
+  const momentum = ballMass * speed;
+  const KE = 0.5 * ballMass * speed * speed;
+
+  document.getElementById('speedDisplay').innerText = speed.toFixed(2);
+  document.getElementById('momentumDisplay').innerText = momentum.toFixed(2);
+  document.getElementById('keDisplay').innerText = KE.toFixed(2);
+
+  momentumData.push(momentum);
+  KEData.push(KE);
+  speedData.push(speed);
+  timeData.push((timeCounter++ / 60).toFixed(2));
+
+  const stopTime = timeData[timeData.length - 1];
+
+  [momentumChart, KEChart, speedChart].forEach((chart, idx) => {
+    chart.data.labels = timeData;
+    chart.data.datasets[0].data = [momentumData, KEData, speedData][idx];
+
+    // Mark "Stopped" if speed near zero and not already paused
+    if (speed < 0.01 && !graphPaused) {
+      const annotation = {
+        type: 'line',
+        mode: 'vertical',
+        scaleID: 'x',
+        value: stopTime,
+        borderColor: 'black',
+        borderWidth: 2,
+        label: {
+          enabled: true,
+          content: 'Stopped',
+          position: 'top'
+        }
+      };
+      chart.options.plugins.annotation.annotations.stop = annotation;
+      chart.update();
+    } else {
+      chart.update();
+    }
+  });
+
+  if (speed < 0.01 && !graphPaused) {
+    clearInterval(graphInterval);
+    graphPaused = true;
+    document.getElementById("resumeBtn").style.display = "inline-block";
+  }
+}
+
+function resumeGraphs() {
+  clearInterval(graphInterval);
+  graphInterval = setInterval(updateGraphs, 1000 / 60);
+  graphPaused = false;
+  document.getElementById("resumeBtn").style.display = "none";
+}
+
+restartSimulation();
+</script>
+</body>
+</html>

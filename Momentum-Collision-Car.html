@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Crash Simulation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        canvas { border: 1px solid black; }
+        .controls { margin-top: 20px; }
+        .graph-container { margin-top: 20px; display: flex; gap: 20px; flex-wrap: wrap; }
+        .graph-container canvas { width: 100%; max-width: 600px; height: 300px; }
+        .input-container { margin-bottom: 20px; }
+        .car-controls { margin-top: 10px; }
+        .car-controls label { font-weight: bold; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Enhanced Car Crash Analysis Simulation</h1>
+
+    <div class="controls">
+        <div class="input-container">
+            <h3>Car A (Red) Controls:</h3>
+            <div class="car-controls">
+                <label for="car1Speed">Speed (m/s):</label>
+                <input type="range" id="car1Speed" min="-5" max="5" value="2" step="0.1">
+                <span id="car1SpeedValue">2</span>
+            </div>
+            <div class="car-controls">
+                <label for="car1Mass">Mass (kg):</label>
+                <input type="range" id="car1Mass" min="500" max="3000" value="1500" step="10">
+                <span id="car1MassValue">1500</span>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <h3>Car B (Blue) Controls:</h3>
+            <div class="car-controls">
+                <label for="car2Speed">Speed (m/s):</label>
+                <input type="range" id="car2Speed" min="-5" max="5" value="-1" step="0.1">
+                <span id="car2SpeedValue">-1</span>
+            </div>
+            <div class="car-controls">
+                <label for="car2Mass">Mass (kg):</label>
+                <input type="range" id="car2Mass" min="500" max="3000" value="1500" step="10">
+                <span id="car2MassValue">1500</span>
+            </div>
+        </div>
+
+        <h3>Collision Type:</h3>
+        <select id="collisionType">
+            <option value="inelastic">Inelastic</option>
+            <option value="elastic">Elastic</option>
+        </select>
+
+        <div class="buttons">
+            <button id="startBtn">Start</button>
+            <button id="stopBtn" disabled>Stop</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+    </div>
+
+    <p id="momentum">Total Momentum: 0</p>
+    <p id="kineticEnergy">Total Kinetic Energy: 0</p>
+
+    <div class="graph-container">
+        <canvas id="momentumChart" width="600" height="300"></canvas>
+        <canvas id="speedChart" width="600" height="300"></canvas>
+    </div>
+
+    <script>
+        // Car object constructor and methods
+        class Car {
+            constructor(x, y, velocity, mass, color) {
+                this.x = x;
+                this.y = y;
+                this.velocity = velocity;
+                this.mass = mass;
+                this.color = color;
+            }
+
+            // Move the car
+            move() {
+                this.x += this.velocity;
+            }
+
+            // Draw the car
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, carWidth, carHeight);
+            }
+
+            // Calculate the kinetic energy of the car
+            getKineticEnergy() {
+                return 0.5 * this.mass * this.velocity ** 2;
+            }
+
+            // Calculate the momentum of the car
+            getMomentum() {
+                return this.mass * this.velocity;
+            }
+
+            // Handle collision with another car
+            collide(otherCar, collisionType) {
+                if (collisionType === 'inelastic') {
+                    const totalMomentum = this.getMomentum() + otherCar.getMomentum();
+                    const totalMass = this.mass + otherCar.mass;
+                    const finalVelocity = totalMomentum / totalMass;
+                    this.velocity = finalVelocity;
+                    otherCar.velocity = finalVelocity;
+                } else if (collisionType === 'elastic') {
+                    const v1 = this.velocity;
+                    const v2 = otherCar.velocity;
+                    const m1 = this.mass;
+                    const m2 = otherCar.mass;
+
+                    this.velocity = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
+                    otherCar.velocity = ((m2 - m1) * v2 + 2 * m1 * v1) / (m1 + m2);
+                }
+            }
+        }
+
+        // Get HTML elements for controls
+        const car1SpeedSlider = document.getElementById('car1Speed');
+        const car2SpeedSlider = document.getElementById('car2Speed');
+        const car1MassSlider = document.getElementById('car1Mass');
+        const car2MassSlider = document.getElementById('car2Mass');
+        const collisionTypeSelect = document.getElementById('collisionType');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const car1SpeedValue = document.getElementById('car1SpeedValue');
+        const car2SpeedValue = document.getElementById('car2SpeedValue');
+        const car1MassValue = document.getElementById('car1MassValue');
+        const car2MassValue = document.getElementById('car2MassValue');
+
+        // Initial values
+        let isRunning = false;
+        let collisionTime = null;
+        let time = 0;
+        let momentumData = [];
+        let speedDataCar1 = [];
+        let speedDataCar2 = [];
+
+        // Set initial car properties
+        const carWidth = 60;
+        const carHeight = 30;
+        let car1 = new Car(100, 150, parseFloat(car1SpeedSlider.value), parseFloat(car1MassSlider.value), 'red');
+        let car2 = new Car(600, 150, parseFloat(car2SpeedSlider.value), parseFloat(car2MassSlider.value), 'blue');
+
+        // Update car speed and mass
+        car1SpeedSlider.addEventListener('input', (e) => {
+            car1.velocity = parseFloat(e.target.value);
+            car1SpeedValue.textContent = e.target.value;
+        });
+        car2SpeedSlider.addEventListener('input', (e) => {
+            car2.velocity = parseFloat(e.target.value);
+            car2SpeedValue.textContent = e.target.value;
+        });
+        car1MassSlider.addEventListener('input', (e) => {
+            car1.mass = parseFloat(e.target.value);
+            car1MassValue.textContent = e.target.value;
+        });
+        car2MassSlider.addEventListener('input', (e) => {
+            car2.mass = parseFloat(e.target.value);
+            car2MassValue.textContent = e.target.value;
+        });
+        collisionTypeSelect.addEventListener('change', (e) => {
+            collisionType = e.target.value;
+        });
+
+        // Create charts
+        const momentumChart = new Chart(document.getElementById('momentumChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Car 1 Momentum (kg·m/s)',
+                        borderColor: 'red',
+                        fill: false,
+                        data: []
+                    },
+                    {
+                        label: 'Car 2 Momentum (kg·m/s)',
+                        borderColor: 'green',
+                        fill: false,
+                        data: []
+                    },
+                    {
+                        label: 'Total Momentum (kg·m/s)',
+                        borderColor: 'blue',
+                        fill: false,
+                        data: []
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { type: 'linear', position: 'bottom' }
+                }
+            }
+        });
+
+        const speedChart = new Chart(document.getElementById('speedChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Car 1 Speed (m/s)',
+                        borderColor: 'red',
+                        fill: false,
+                        data: []
+                    },
+                    {
+                        label: 'Car 2 Speed (m/s)',
+                        borderColor: 'green',
+                        fill: false,
+                        data: []
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { type: 'linear', position: 'bottom' }
+                }
+            }
+        });
+
+        // Control buttons
+        startBtn.addEventListener('click', () => {
+            resetGraphs();
+            isRunning = true;
+            collisionTime = null;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            update();
+        });
+
+        stopBtn.addEventListener('click', () => {
+            isRunning = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        });
+
+        resetBtn.addEventListener('click', () => {
+            resetGraphs();
+            isRunning = false;
+            time = 0;
+            momentumData = [];
+            speedDataCar1 = [];
+            speedDataCar2 = [];
+            car1.x = 100;
+            car2.x = 600;
+            car1.velocity = parseFloat(car1SpeedSlider.value);
+            car2.velocity = parseFloat(car2SpeedSlider.value);
+            car1.mass = parseFloat(car1MassSlider.value);
+            car2.mass = parseFloat(car2MassSlider.value);
+            car1SpeedSlider.value = 2;
+            car2SpeedSlider.value = -1;
+            car1MassSlider.value = 1500;
+            car2MassSlider.value = 1500;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            update();
+        });
+
+        // Reset both charts
+        function resetGraphs() {
+            momentumChart.data.labels = [];
+            momentumChart.data.datasets[0].data = [];
+            momentumChart.data.datasets[1].data = [];
+            momentumChart.data.datasets[2].data = [];
+
+            speedChart.data.labels = [];
+            speedChart.data.datasets[0].data = [];
+            speedChart.data.datasets[1].data = [];
+
+            momentumChart.update();
+            speedChart.update();
+        }
+
+        // Main update function
+        function update() {
+            if (!isRunning) return;
+
+            // Move cars
+            car1.move();
+            car2.move();
+
+            // Handle collision
+            if (car1.x + carWidth > car2.x && car1.x < car2.x + carWidth) {
+                if (!collisionTime) {
+                    collisionTime = time;
+                }
+                car1.collide(car2, collisionType);
+            }
+
+            // Stop the simulation 4 seconds after the collision
+            if (collisionTime && time >= collisionTime + 4) {
+                isRunning = false;
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+
+            // Draw cars
+            const canvas = document.getElementById('momentumChart');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            car1.draw(ctx);
+            car2.draw(ctx);
+
+            // Update momentum and kinetic energy
+            const totalMomentum = car1.getMomentum() + car2.getMomentum();
+            const totalKineticEnergy = car1.getKineticEnergy() + car2.getKineticEnergy();
+
+            document.getElementById('momentum').textContent = `Total Momentum: ${totalMomentum.toFixed(2)} kg·m/s`;
+            document.getElementById('kineticEnergy').textContent = `Total Kinetic Energy: ${totalKineticEnergy.toFixed(2)} Joules`;
+
+            // Collect data for graphs
+            momentumChart.data.labels.push(time);
+            momentumChart.data.datasets[0].data.push(car1.getMomentum());
+            momentumChart.data.datasets[1].data.push(car2.getMomentum());
+            momentumChart.data.datasets[2].data.push(totalMomentum);
+
+            speedChart.data.labels.push(time);
+            speedChart.data.datasets[0].data.push(car1.velocity);
+            speedChart.data.datasets[1].data.push(car2.velocity);
+
+            momentumChart.update();
+            speedChart.update();
+
+            time++;
+            requestAnimationFrame(update);
+        }
+    </script>
+</body>
+</html>

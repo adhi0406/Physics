@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Momentum and Kinetic Energy Simulation</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .container {
+      display: flex;
+      justify-content: space-between;
+    }
+    .graph {
+      width: 45%;
+      height: 300px;
+    }
+    .input-container {
+      width: 45%;
+    }
+    canvas {
+      border: 1px solid #000;
+      background-color: #f0f0f0;
+    }
+    .calculation-steps {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #fafafa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Momentum and Kinetic Energy Simulation with Collision and COR</h1>
+  <div class="container">
+    <div class="input-container">
+      <h3>Input Parameters</h3>
+      <label for="mass1">Mass of Ball 1 (kg): </label>
+      <input type="number" id="mass1" value="1" min="0.1" step="0.1"><br><br>
+
+      <label for="velocity1">Velocity of Ball 1 (m/s): </label>
+      <input type="number" id="velocity1" value="5" min="0.1" step="0.1"><br><br>
+
+      <label for="mass2">Mass of Ball 2 (kg): </label>
+      <input type="number" id="mass2" value="1" min="0.1" step="0.1"><br><br>
+
+      <label for="velocity2">Velocity of Ball 2 (m/s): </label>
+      <input type="number" id="velocity2" value="-3" min="0.1" step="0.1"><br><br>
+
+      <label for="cor">Coefficient of Restitution (COR): </label>
+      <input type="number" id="cor" value="1" min="0" max="1" step="0.01"><br><br>
+
+      <button onclick="updateSimulation()">Update Simulation</button>
+    </div>
+
+    <div class="graphs">
+      <canvas id="momentumGraph" class="graph"></canvas>
+      <canvas id="kineticEnergyGraph" class="graph"></canvas>
+    </div>
+  </div>
+
+  <h3>Results</h3>
+  <div>
+    <p id="momentumResult">Momentum: </p>
+    <p id="kineticEnergyResult">Kinetic Energy: </p>
+  </div>
+
+  <h3>Calculation Details</h3>
+  <div class="calculation-steps">
+    <h4>Momentum Formula:</h4>
+    <p id="momentumFormula">Momentum = mass × velocity</p>
+    <p id="momentumCalculation">Calculation: </p>
+
+    <h4>Kinetic Energy Formula:</h4>
+    <p id="kineticEnergyFormula">Kinetic Energy = 0.5 × mass × velocity²</p>
+    <p id="kineticEnergyCalculation">Calculation: </p>
+  </div>
+
+  <h3>Animation</h3>
+  <canvas id="animationCanvas" width="500" height="200"></canvas>
+
+  <script>
+    // Initialize the graphs
+    const ctxMomentum = document.getElementById('momentumGraph').getContext('2d');
+    const ctxKineticEnergy = document.getElementById('kineticEnergyGraph').getContext('2d');
+    const ctxAnimation = document.getElementById('animationCanvas').getContext('2d');
+
+    // Graph setup
+    const momentumChart = new Chart(ctxMomentum, {
+      type: 'line',
+      data: {
+        labels: [], // Time in seconds
+        datasets: [{
+          label: 'Momentum (kg·m/s)',
+          borderColor: 'rgba(255, 99, 132, 1)',
+          backgroundColor: 'rgba(255, 99, 132, 0.2)',
+          data: [],
+          fill: true
+        }]
+      }
+    });
+
+    const kineticEnergyChart = new Chart(ctxKineticEnergy, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Kinetic Energy (J)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          backgroundColor: 'rgba(54, 162, 235, 0.2)',
+          data: [],
+          fill: true
+        }]
+      }
+    });
+
+    // Variables for simulation
+    let mass1 = 1, mass2 = 1, velocity1 = 5, velocity2 = -3, COR = 1;
+    let ball1X = 50, ball2X = 300;
+    let ball1Velocity = velocity1, ball2Velocity = velocity2;
+    let momentum1, momentum2, kineticEnergy1, kineticEnergy2;
+    let isRunning = false;
+
+    // Function to update the simulation
+    function updateSimulation() {
+      mass1 = parseFloat(document.getElementById('mass1').value);
+      velocity1 = parseFloat(document.getElementById('velocity1').value);
+      mass2 = parseFloat(document.getElementById('mass2').value);
+      velocity2 = parseFloat(document.getElementById('velocity2').value);
+      COR = parseFloat(document.getElementById('cor').value);
+
+      // Calculate initial momentum and kinetic energy
+      momentum1 = mass1 * velocity1;
+      momentum2 = mass2 * velocity2;
+      kineticEnergy1 = 0.5 * mass1 * Math.pow(velocity1, 2);
+      kineticEnergy2 = 0.5 * mass2 * Math.pow(velocity2, 2);
+
+      // Update Results
+      document.getElementById('momentumResult').innerText = `Momentum: ${momentum1 + momentum2} kg·m/s (Total)`;
+      document.getElementById('kineticEnergyResult').innerText = `Kinetic Energy: ${kineticEnergy1 + kineticEnergy2} J (Total)`;
+
+      // Update the Graphs
+      updateGraph(momentum1 + momentum2, kineticEnergy1 + kineticEnergy2);
+
+      // Calculate new velocities after collision using COR
+      const relativeVelocityBefore = velocity1 - velocity2;
+      const relativeVelocityAfter = COR * relativeVelocityBefore;
+
+      const newVelocity1 = (mass1 * velocity1 + mass2 * velocity2 + mass2 * relativeVelocityAfter) / (mass1 + mass2);
+      const newVelocity2 = (mass1 * velocity1 + mass2 * velocity2 - mass1 * relativeVelocityAfter) / (mass1 + mass2);
+
+      // Update velocities after collision
+      ball1Velocity = newVelocity1;
+      ball2Velocity = newVelocity2;
+
+      // Update Calculation Details
+      document.getElementById('momentumCalculation').innerText = `Calculation: (${mass1} × ${velocity1}) + (${mass2} × ${velocity2}) = ${momentum1 + momentum2}`;
+      document.getElementById('kineticEnergyCalculation').innerText = `Calculation: 0.5 × ${mass1} × (${velocity1}²) + 0.5 × ${mass2} × (${velocity2}²) = ${kineticEnergy1 + kineticEnergy2}`;
+
+      // Reset ball positions and start animation
+      ball1X = 50; // Reset the first ball position
+      ball2X = 300; // Reset the second ball position
+      isRunning = true;
+      animateBall();
+    }
+
+    // Function to update the graph data
+    function updateGraph(momentum, kineticEnergy) {
+      const time = momentumChart.data.labels.length + 1; // Incrementing time by 1 second for each update
+
+      // Add the new values to the graphs
+      momentumChart.data.labels.push(time);
+      momentumChart.data.datasets[0].data.push(momentum);
+      momentumChart.update();
+
+      kineticEnergyChart.data.labels.push(time);
+      kineticEnergyChart.data.datasets[0].data.push(kineticEnergy);
+      kineticEnergyChart.update();
+    }
+
+    // Function to animate the balls and demonstrate the collision
+    function animateBall() {
+      if (!isRunning) return;
+
+      ctxAnimation.clearRect(0, 0, 500, 200); // Clear the canvas
+
+      // Draw the first ball
+      ctxAnimation.beginPath();
+      ctxAnimation.arc(ball1X, 100, 20, 0, 2 * Math.PI);
+      ctxAnimation.fillStyle = 'blue';
+      ctxAnimation.fill();
+      ctxAnimation.closePath();
+
+      // Draw the second ball
+      ctxAnimation.beginPath();
+      ctxAnimation.arc(ball2X, 100, 20, 0, 2 * Math.PI);
+      ctxAnimation.fillStyle = 'red';
+      ctxAnimation.fill();
+      ctxAnimation.closePath();
+
+      // Draw arrows for momentum (ball1 -> blue, ball2 -> red)
+      ctxAnimation.beginPath();
+      ctxAnimation.moveTo(ball1X, 100);
+      ctxAnimation.lineTo(ball1X + ball1Velocity * 10, 100);
+      ctxAnimation.strokeStyle = 'green';
+      ctxAnimation.lineWidth = 2;
+      ctxAnimation.setLineDash([5, 5]);
+      ctxAnimation.stroke();
+      ctxAnimation.closePath();
+
+      ctxAnimation.beginPath();
+      ctxAnimation.moveTo(ball2X, 100);
+      ctxAnimation.lineTo(ball2X + ball2Velocity * 10, 100);
+      ctxAnimation.strokeStyle = 'orange';
+      ctxAnimation.lineWidth = 2;
+      ctxAnimation.setLineDash([5, 5]);
+      ctxAnimation.stroke();
+      ctxAnimation.closePath();
+
+      // Update ball positions
+      ball1X += ball1Velocity;
+      ball2X += ball2Velocity;
+
+      // Collision check
+      if (ball1X + 20 >= ball2X) {
+        // Reverse velocities upon collision
+        const relativeVelocityBefore = ball1Velocity - ball2Velocity;
+        const relativeVelocityAfter = COR * relativeVelocityBefore;
+
+        ball1Velocity = (mass1 * ball1Velocity + mass2 * ball2Velocity + mass2 * relativeVelocityAfter) / (mass1 + mass2);
+        ball2Velocity = (mass1 * ball1Velocity + mass2 * ball2Velocity - mass1 * relativeVelocityAfter) / (mass1 + mass2);
+
+        // Prevent velocities from becoming too small
+        if (Math.abs(ball1Velocity) < 0.1) ball1Velocity = 0.1 * Math.sign(ball1Velocity);
+        if (Math.abs(ball2Velocity) < 0.1) ball2Velocity = 0.1 * Math.sign(ball2Velocity);
+
+        // Reset ball positions for a new bounce
+        ball1X = 50;
+        ball2X = 300;
+      }
+
+      // Request next frame
+      requestAnimationFrame(animateBall);
+    }
+
+    // Initialize with default values
+    updateSimulation();
+  </script>
+</body>
+</html>

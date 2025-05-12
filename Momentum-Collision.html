@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Momentum & Collision Simulator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    canvas { border: 1px solid #ccc; margin-top: 10px; }
+    label { display: inline-block; margin: 5px 15px 5px 0; }
+    #controls { margin-bottom: 20px; }
+    #output { background: #f9f9f9; padding: 15px; border: 1px solid #ccc; margin: 20px 0; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h2>Momentum & Collision Simulator</h2>
+
+  <div id="controls">
+    <label>Mass A (kg): <input type="number" id="massA" value="2"></label>
+    <label>Velocity A (m/s): <input type="number" id="velA" value="2"></label>
+    <br>
+    <label>Mass B (kg): <input type="number" id="massB" value="3"></label>
+    <label>Velocity B (m/s): <input type="number" id="velB" value="-1"></label>
+    <br>
+    <label>
+      Collision Type:
+      <select id="collisionType">
+        <option value="elastic">Elastic</option>
+        <option value="inelastic">Perfectly Inelastic</option>
+      </select>
+    </label>
+    <button onclick="startSimulation()">Start Simulation</button>
+  </div>
+
+  <div id="output"></div>
+
+  <canvas id="animationCanvas" width="600" height="100"></canvas>
+  <canvas id="momentumChart" width="600" height="250"></canvas>
+  <canvas id="energyChart" width="600" height="250"></canvas>
+
+  <script>
+    let ctxAnim = document.getElementById('animationCanvas').getContext('2d');
+    let momentumChart, energyChart;
+    let interval;
+
+    function startSimulation() {
+      let mA = parseFloat(document.getElementById('massA').value);
+      let vA = parseFloat(document.getElementById('velA').value);
+      let mB = parseFloat(document.getElementById('massB').value);
+      let vB = parseFloat(document.getElementById('velB').value);
+      let type = document.getElementById('collisionType').value;
+
+      let widthScale = 10;
+      let objA = { x: 100, mass: mA, v: vA, color: "red", w: mA * widthScale };
+      let objB = { x: 400, mass: mB, v: vB, color: "blue", w: mB * widthScale };
+      let time = 0;
+
+      if (momentumChart) momentumChart.destroy();
+      if (energyChart) energyChart.destroy();
+
+      // Precompute final velocities
+      let vA_final, vB_final, details;
+
+      if (type === 'elastic') {
+        vA_final = ((mA - mB) * vA + 2 * mB * vB) / (mA + mB);
+        vB_final = ((mB - mA) * vB + 2 * mA * vA) / (mA + mB);
+
+        details = `Elastic Collision:
+Final velocities:
+vA' = ((mA - mB)*vA + 2*mB*vB)/(mA + mB)
+    = ((${mA} - ${mB})*${vA} + 2*${mB}*${vB}) / (${mA + mB})
+    = ${vA_final.toFixed(2)} m/s
+
+vB' = ((mB - mA)*vB + 2*mA*vA)/(mA + mB)
+    = ((${mB} - ${mA})*${vB} + 2*${mA}*${vA}) / (${mA + mB})
+    = ${vB_final.toFixed(2)} m/s`;
+      } else {
+        let vFinal = (mA * vA + mB * vB) / (mA + mB);
+        vA_final = vB_final = vFinal;
+
+        details = `Perfectly Inelastic Collision:
+Objects stick together with final velocity:
+v = (mA*vA + mB*vB)/(mA + mB)
+  = (${mA}*${vA} + ${mB}*${vB}) / (${mA + mB})
+  = ${vFinal.toFixed(2)} m/s`;
+      }
+
+      const pA_before = mA * vA;
+      const pB_before = mB * vB;
+      const totalP_before = pA_before + pB_before;
+      const pA_after = mA * vA_final;
+      const pB_after = mB * vB_final;
+      const totalP_after = pA_after + pB_after;
+
+      const KE_before = 0.5 * mA * vA ** 2 + 0.5 * mB * vB ** 2;
+      const KE_after = 0.5 * mA * vA_final ** 2 + 0.5 * mB * vB_final ** 2;
+
+      details += `
+
+Momentum:
+Before: pA = ${pA_before.toFixed(2)}, pB = ${pB_before.toFixed(2)}, Total = ${totalP_before.toFixed(2)} kg·m/s
+After:  pA = ${pA_after.toFixed(2)}, pB = ${pB_after.toFixed(2)}, Total = ${totalP_after.toFixed(2)} kg·m/s
+
+Kinetic Energy:
+Before = ${KE_before.toFixed(2)} J
+After  = ${KE_after.toFixed(2)} J
+${type === 'inelastic' ? '→ KE not conserved (converted to heat/sound).' : '→ KE conserved.'}`;
+
+      document.getElementById('output').textContent = details;
+
+      momentumChart = new Chart(document.getElementById('momentumChart').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Momentum A', borderColor: 'red', data: [], fill: false },
+            { label: 'Momentum B', borderColor: 'blue', data: [], fill: false },
+            { label: 'Total Momentum', borderColor: 'green', data: [], fill: false }
+          ]
+        },
+        options: {
+          animation: false,
+          plugins: { title: { display: true, text: 'Momentum vs Time' } },
+          scales: {
+            x: { title: { display: true, text: 'Time' } },
+            y: { title: { display: true, text: 'Momentum (kg·m/s)' } }
+          }
+        }
+      });
+
+      energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'KE A', borderColor: 'orange', data: [], fill: false },
+            { label: 'KE B', borderColor: 'purple', data: [], fill: false },
+            { label: 'Total KE', borderColor: 'black', data: [], fill: false }
+          ]
+        },
+        options: {
+          animation: false,
+          plugins: { title: { display: true, text: 'Kinetic Energy vs Time' } },
+          scales: {
+            x: { title: { display: true, text: 'Time' } },
+            y: { title: { display: true, text: 'Energy (Joules)' } }
+          }
+        }
+      });
+
+      clearInterval(interval);
+      interval = setInterval(() => {
+        // Collision logic
+        if (Math.abs((objA.x + objA.w) - objB.x) < 5 || Math.abs((objB.x + objB.w) - objA.x) < 5) {
+          objA.v = vA_final;
+          objB.v = vB_final;
+        }
+
+        // Move objects
+        objA.x += objA.v;
+        objB.x += objB.v;
+
+        // Draw animation
+        ctxAnim.clearRect(0, 0, 600, 100);
+        ctxAnim.fillStyle = objA.color;
+        ctxAnim.fillRect(objA.x, 30, objA.w, 20);
+        ctxAnim.fillStyle = objB.color;
+        ctxAnim.fillRect(objB.x, 30, objB.w, 20);
+
+        // Physics values
+        const pA = objA.mass * objA.v;
+        const pB = objB.mass * objB.v;
+        const KEA = 0.5 * objA.mass * objA.v ** 2;
+        const KEB = 0.5 * objB.mass * objB.v ** 2;
+
+        momentumChart.data.labels.push(time.toString());
+        momentumChart.data.datasets[0].data.push(pA);
+        momentumChart.data.datasets[1].data.push(pB);
+        momentumChart.data.datasets[2].data.push(pA + pB);
+        momentumChart.update();
+
+        energyChart.data.labels.push(time.toString());
+        energyChart.data.datasets[0].data.push(KEA);
+        energyChart.data.datasets[1].data.push(KEB);
+        energyChart.data.datasets[2].data.push(KEA + KEB);
+        energyChart.update();
+
+        time += 1;
+        if (time > 100) clearInterval(interval);
+      }, 100);
+    }
+  </script>
+</body>
+</html>
